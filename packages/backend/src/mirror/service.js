@@ -73,6 +73,11 @@ class MirrorService {
     return this.#manager.list()
   }
 
+  /** Mirror profile metadata for an account (works for replicated mirrors too). */
+  profileOf(account) {
+    return this.#manager.profileOf(account)
+  }
+
   /**
    * Freshness of a mirror: shell out for the source's latest, compare to mirrored.
    * @param {string} platform @param {string} handle

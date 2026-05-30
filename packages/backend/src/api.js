@@ -96,6 +96,13 @@ function createApiServer(store) {
         return json(res, 200, store.listMirrors())
       }
 
+      // mirror profile metadata for an account (badges replicated mirrors too).
+      if (route === 'GET /api/mirror/profile') {
+        const account = url.searchParams.get('account')
+        if (!account) throw new Error('mirror/profile requires an account')
+        return json(res, 200, (await store.mirrorProfile(account)) || {})
+      }
+
       // freshness: ?platform=instagram&handle=chef_jane
       if (route === 'GET /api/mirror/freshness') {
         const platform = url.searchParams.get('platform') || 'instagram'

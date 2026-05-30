@@ -171,6 +171,22 @@ class MirrorManager {
     })
   }
 
+  /**
+   * The mirror's profile metadata (from its replicable `profile` message): source,
+   * fullName, avatarUrl, managedBy. Works for ANY mirror account we hold OR have
+   * replicated from a peer — so the UI can badge mirrors it didn't create itself.
+   * Returns null if the account has no profile message (i.e. not a known mirror).
+   */
+  async profileOf(account) {
+    for await (const rec of this.#peer.db.records()) {
+      if (!rec?.msg?.data) continue
+      if (rec.msg.metadata?.account !== account) continue
+      if (rec.msg.metadata?.domain !== 'profile') continue
+      if (rec.msg.data.source) return rec.msg.data
+    }
+    return null
+  }
+
   /** Look up a mirror's account by handle. */
   accountFor(platform, handle) {
     return this.#mirrors.get(this.#key(platform, handle))?.account ?? null
