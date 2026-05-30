@@ -111,7 +111,7 @@ def fetch_one(loader: Any, handle: str, limit: int, since_dt: datetime | None) -
         for post in profile.get_posts():
             posted_at = to_utc(post.date_utc)
             if since_dt and posted_at <= since_dt:
-                continue
+                break
             posts.append(post_to_contract(post))
             if len(posts) >= limit:
                 break

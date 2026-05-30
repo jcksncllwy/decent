@@ -32,4 +32,5 @@ export const api = {
   mirrorProfile: (account) => req('GET', `/mirror/profile?account=${encodeURIComponent(account)}`),
   mirrorFreshness: (handle, platform = 'instagram') =>
     req('GET', `/mirror/freshness?platform=${platform}&handle=${encodeURIComponent(handle)}`),
+  mirrorFreshnessMany: (mirrors) => req('POST', '/mirror/freshness', { mirrors }),
 }

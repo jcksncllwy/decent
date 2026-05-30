@@ -56,6 +56,23 @@ class FakeProfile:
         )
 
 
+class CutoffProfile(FakeProfile):
+    def get_posts(self):
+        yield FakePost(
+            "CNEW123",
+            datetime.fromisoformat("2026-05-29T14:02:00"),
+            "today's special",
+            "https://cdn.example/full.jpg",
+        )
+        yield FakePost(
+            "COLD123",
+            datetime.fromisoformat("2026-05-01T14:02:00"),
+            "older special",
+            "https://cdn.example/old.jpg",
+        )
+        raise AssertionError("fetch should stop at the first post older than --since")
+
+
 def run_cli(*args, get_profile=None):
     get_profile = get_profile or Mock(return_value=FakeProfile())
     get_loader = Mock(return_value=object())
@@ -94,7 +111,13 @@ class ContractTest(unittest.TestCase):
         self.assertEqual(post["media"], [{"type": "image", "thumbUrl": "https://cdn.example/full.jpg", "fullUrl": "https://cdn.example/full.jpg"}])
 
     def test_fetch_since_filters_old_posts(self):
-        code, data, _, _ = run_cli("fetch", "chef_jane", "--since", "2026-05-10T00:00:00Z")
+        code, data, _, _ = run_cli(
+            "fetch",
+            "chef_jane",
+            "--since",
+            "2026-05-10T00:00:00Z",
+            get_profile=Mock(return_value=CutoffProfile()),
+        )
 
         self.assertEqual(code, 0)
         self.assertEqual([post["sourceId"] for post in data["results"][0]["posts"]], ["CNEW123"])

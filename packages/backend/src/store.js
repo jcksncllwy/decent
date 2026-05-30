@@ -207,6 +207,11 @@ class Store {
     return this.#mirrorService().freshness(platform, handle)
   }
 
+  /** Batched freshness verdicts for mirrors (one ingest probe per batch). */
+  mirrorFreshnessMany(mirrors) {
+    return this.#mirrorService().freshnessMany(mirrors)
+  }
+
   /** Mirror profile metadata for an account (source/handle/managedBy) or null. */
   mirrorProfile(account) {
     return this.#mirrorService().profileOf(account)

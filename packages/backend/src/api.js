@@ -23,6 +23,8 @@ const http = require('node:http')
  *                                body: { handles: [..], limit? }
  *   GET  /api/mirror        -> [ { platform, handle, account } ]  (mirrors we manage)
  *   GET  /api/mirror/freshness?platform=&handle= -> { state: fresh|stale|..., ... }
+ *   POST /api/mirror/freshness -> [ { platform, handle, state, ... } | { error, kind } ]
+ *                                body: { mirrors: [{platform, handle}] }
  *   POST /api/hub/join      -> { hub }        body: { multiaddr }
  *   POST /api/hub/connect   -> { connected }  body: { hub, peer } (pubkeys)
  */
@@ -109,6 +111,13 @@ function createApiServer(store) {
         const handle = url.searchParams.get('handle')
         if (!handle) throw new Error('mirror/freshness requires a handle')
         return json(res, 200, await store.mirrorFreshness(platform, handle))
+      }
+
+      if (route === 'POST /api/mirror/freshness') {
+        const { mirrors } = await readJson(req)
+        const list = Array.isArray(mirrors) ? mirrors : []
+        if (list.length === 0) throw new Error('mirror/freshness requires mirrors')
+        return json(res, 200, await store.mirrorFreshnessMany(list))
       }
 
       if (route === 'POST /api/hub/join') {

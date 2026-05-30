@@ -55,16 +55,19 @@
       mirrors = nextMirrors
       error = null
 
-      const entries = await Promise.all(
-        nextMirrors.map(async (mirror) => {
-          try {
-            return [mirrorKey(mirror), await api.mirrorFreshness(mirror.handle, mirror.platform)]
-          } catch (err) {
-            return [mirrorKey(mirror), { state: 'unknown', error: err.message, kind: err.kind }]
-          }
-        })
-      )
-      freshness = Object.fromEntries(entries)
+      try {
+        const verdicts = await api.mirrorFreshnessMany(nextMirrors)
+        freshness = Object.fromEntries(
+          verdicts.map((verdict) => [mirrorKey(verdict), verdict.error ? { state: 'unknown', ...verdict } : verdict])
+        )
+      } catch (err) {
+        freshness = Object.fromEntries(
+          nextMirrors.map((mirror) => [
+            mirrorKey(mirror),
+            { state: 'unknown', error: err.message, kind: err.kind },
+          ])
+        )
+      }
     } catch (err) {
       error = err.message
     } finally {

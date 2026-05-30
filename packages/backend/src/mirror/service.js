@@ -99,6 +99,54 @@ class MirrorService {
     const verdict = await this.#manager.freshness(account, r.latest)
     return { platform, handle, account, ...verdict }
   }
+
+  /**
+   * Batched freshness for mirror-panel loads. All Instagram handles are probed in
+   * one ingest process, preserving one Instaloader RateController for the batch.
+   * @param {{platform?: string, handle: string}[]} mirrors
+   */
+  async freshnessMany(mirrors) {
+    const normalized = mirrors.map((mirror) => ({
+      platform: mirror.platform || 'instagram',
+      handle: mirror.handle,
+    }))
+
+    const unsupported = normalized.find((mirror) => mirror.platform !== 'instagram')
+    if (unsupported) {
+      const e = new Error(`unsupported mirror platform: ${unsupported.platform}`)
+      e.kind = 'other'
+      throw e
+    }
+
+    const handles = normalized.map((mirror) => mirror.handle)
+    const batch = await fetchFreshness(handles)
+    const byHandle = new Map(
+      (batch.results ?? []).map((result) => [String(result.handle).toLowerCase(), result])
+    )
+
+    return Promise.all(
+      normalized.map(async ({ platform, handle }) => {
+        const account = this.#manager.accountFor(platform, handle)
+        if (!account) {
+          return { platform, handle, error: `no mirror for ${platform}:${handle}`, kind: 'notfound' }
+        }
+
+        const result = byHandle.get(String(handle).toLowerCase())
+        if (!result || result.error) {
+          return {
+            platform,
+            handle,
+            account,
+            error: result?.error || 'freshness probe failed',
+            kind: result?.kind || 'other',
+          }
+        }
+
+        const verdict = await this.#manager.freshness(account, result.latest)
+        return { platform, handle, account, ...verdict }
+      })
+    )
+  }
 }
 
 module.exports = { MirrorService }
