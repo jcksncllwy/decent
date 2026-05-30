@@ -17,4 +17,8 @@ export const api = {
   posts: () => req('GET', '/posts'),
   post: (text) => req('POST', '/posts', { text }),
   del: (id) => req('DELETE', `/posts/${encodeURIComponent(id)}`),
+
+  // iroh dial-by-code: your own code to share, and connecting to a friend's.
+  nodeId: () => req('GET', '/nodeid'), // -> { nodeId, account, ticket, code }
+  connectIroh: (code) => req('POST', '/connect-iroh', { code }), // -> { connected }
 }

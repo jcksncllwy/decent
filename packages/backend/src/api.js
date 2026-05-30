@@ -11,12 +11,14 @@ const http = require('node:http')
  *
  * Routes:
  *   GET  /api/whoami        -> { account, pubkey }
- *   GET  /api/address       -> { address }   (hand to a peer so they can dial us)
+ *   GET  /api/address       -> { address }   (secret-stack: dial us directly)
+ *   GET  /api/nodeid        -> { nodeId, account, ticket, code } (iroh share code)
  *   GET  /api/posts         -> [ { id, text, account, received }, ... ]
  *   POST /api/posts         -> { id, ... }   body: { text }
  *   DELETE /api/posts/:id   -> { deleted }
  *   POST /api/follow        -> { feed, goal } body: { account, goal? }
- *   POST /api/connect       -> { connected }  body: { address }
+ *   POST /api/connect       -> { connected }  body: { address }  (secret-stack)
+ *   POST /api/connect-iroh  -> { connected }  body: { code }     (iroh dial-by-code)
  *   POST /api/hub/join      -> { hub }        body: { multiaddr }
  *   POST /api/hub/connect   -> { connected }  body: { hub, peer } (pubkeys)
  */
@@ -26,12 +28,21 @@ function createApiServer(store) {
     const route = `${req.method} ${url.pathname}`
 
     try {
+      if (isMutating(req.method) && !isAllowedOrigin(req.headers.origin)) {
+        return json(res, 403, { error: 'origin not allowed' })
+      }
+
       if (route === 'GET /api/whoami') {
         return json(res, 200, store.whoami())
       }
 
       if (route === 'GET /api/address') {
         return json(res, 200, { address: store.address() })
+      }
+
+      // iroh: our dial-by-code identity (the "code" a friend pastes to reach us).
+      if (route === 'GET /api/nodeid') {
+        return json(res, 200, await store.irohId())
       }
 
       if (route === 'GET /api/posts') {
@@ -62,6 +73,13 @@ function createApiServer(store) {
         return json(res, 200, { connected: address })
       }
 
+      // iroh: dial a peer by their pasted NodeId/ticket (NAT-traversing).
+      if (route === 'POST /api/connect-iroh') {
+        const { code } = await readJson(req)
+        if (!code) throw new Error('connect-iroh requires a code (nodeId or ticket)')
+        return json(res, 200, await store.irohConnect(code))
+      }
+
       if (route === 'POST /api/hub/join') {
         const { multiaddr } = await readJson(req)
         if (!multiaddr) throw new Error('hub/join requires a multiaddr')
@@ -86,11 +104,22 @@ function json(res, status, payload) {
   const body = JSON.stringify(payload)
   res.writeHead(status, {
     'content-type': 'application/json',
-    'access-control-allow-origin': '*',
-    'access-control-allow-methods': 'GET,POST,DELETE,OPTIONS',
-    'access-control-allow-headers': 'content-type',
   })
   res.end(body)
+}
+
+function isMutating(method) {
+  return method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS'
+}
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true
+  try {
+    const url = new URL(origin)
+    return url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')
+  } catch {
+    return false
+  }
 }
 
 function readJson(req) {
