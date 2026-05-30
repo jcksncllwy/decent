@@ -11,12 +11,14 @@ const http = require('node:http')
  *
  * Routes:
  *   GET  /api/whoami        -> { account, pubkey }
- *   GET  /api/address       -> { address }   (hand to a peer so they can dial us)
+ *   GET  /api/address       -> { address }   (secret-stack: dial us directly)
+ *   GET  /api/nodeid        -> { nodeId, ticket }  (iroh: the code a friend pastes)
  *   GET  /api/posts         -> [ { id, text, account, received }, ... ]
  *   POST /api/posts         -> { id, ... }   body: { text }
  *   DELETE /api/posts/:id   -> { deleted }
  *   POST /api/follow        -> { feed, goal } body: { account, goal? }
- *   POST /api/connect       -> { connected }  body: { address }
+ *   POST /api/connect       -> { connected }  body: { address }  (secret-stack)
+ *   POST /api/connect-iroh  -> { connected }  body: { code }     (iroh dial-by-code)
  *   POST /api/hub/join      -> { hub }        body: { multiaddr }
  *   POST /api/hub/connect   -> { connected }  body: { hub, peer } (pubkeys)
  */
@@ -32,6 +34,11 @@ function createApiServer(store) {
 
       if (route === 'GET /api/address') {
         return json(res, 200, { address: store.address() })
+      }
+
+      // iroh: our dial-by-code identity (the "code" a friend pastes to reach us).
+      if (route === 'GET /api/nodeid') {
+        return json(res, 200, await store.irohId())
       }
 
       if (route === 'GET /api/posts') {
@@ -60,6 +67,13 @@ function createApiServer(store) {
         if (!address) throw new Error('connect requires an address')
         await store.connect(address)
         return json(res, 200, { connected: address })
+      }
+
+      // iroh: dial a peer by their pasted NodeId/ticket (NAT-traversing).
+      if (route === 'POST /api/connect-iroh') {
+        const { code } = await readJson(req)
+        if (!code) throw new Error('connect-iroh requires a code (nodeId or ticket)')
+        return json(res, 200, await store.irohConnect(code))
       }
 
       if (route === 'POST /api/hub/join') {

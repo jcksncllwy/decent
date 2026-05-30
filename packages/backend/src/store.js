@@ -15,6 +15,7 @@ class Store {
   #peer
   #keypair
   #accountId
+  #iroh
 
   constructor({ peer, keypair }) {
     this.#peer = peer
@@ -116,6 +117,42 @@ class Store {
   /** Start the sync scheduler (replicate goaled feeds with connected peers). */
   syncStart() {
     this.#peer.sync.start()
+  }
+
+  // ---- iroh transport (dial-by-code, NAT-traversing; alongside secret-stack) --
+
+  /**
+   * The pull-stream duplex ppppp-sync wants carried over a transport. The iroh
+   * transport bridges this over a QUIC stream. Kept pzp-internal here so the
+   * transport module stays pzp-agnostic.
+   */
+  syncDuplex() {
+    return this.#peer.sync.connect.call({ shse: { pubkey: this.#keypair.public } })
+  }
+
+  /** Lazily create the iroh transport, wiring it to this peer's sync duplex. */
+  async #irohTransport() {
+    if (!this.#iroh) {
+      const { createIrohTransport } = require('./iroh-transport')
+      this.#iroh = await createIrohTransport({
+        syncDuplex: () => this.syncDuplex(),
+      })
+    }
+    return this.#iroh
+  }
+
+  /** Our iroh NodeId + ticket — the "code" a friend pastes to connect to us. */
+  async irohId() {
+    const t = await this.#irohTransport()
+    return { nodeId: await t.nodeId(), ticket: await t.ticket() }
+  }
+
+  /** Dial a peer by their iroh NodeId (or ticket) and start syncing. */
+  async irohConnect(code) {
+    const t = await this.#irohTransport()
+    await t.connect(code)
+    this.#peer.sync.start()
+    return { connected: code }
   }
 
   // ---- Hub connectivity (reach peers behind NAT via a public ppppp-hub) ------
