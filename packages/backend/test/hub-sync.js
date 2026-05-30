@@ -1,14 +1,22 @@
 'use strict'
 
 /**
- * Hub-mediated sync proof: start a local ppppp-hub, stand up two Decent nodes,
- * have both JOIN the hub, then have alice connect to bob *through the hub's
- * tunnel* (not a direct dial) and replicate his posts.
+ * Hub-mediated sync proof (WORK IN PROGRESS — see KNOWN ISSUE below).
  *
- * This proves the exact Step 4 path locally — the only thing the real droplet
- * adds is a public IP. If this passes, cross-network sync is just reachability.
+ * Starts a local ppppp-hub, stands up two Decent nodes, both JOIN the hub, then
+ * replicate bob's posts to alice *through the hub tunnel*.
  *
- * Run (hub must be started first by this script): node packages/backend/test/hub-sync.js
+ * STATUS: every piece works in isolation (join, invite token, the hub's
+ * attendants() stream correctly reports co-members), BUT the final tunnel→sync
+ * step fails. Root cause: connecting to the hub via ppppp-net (required so the
+ * tunnel transport registers the hub) triggers ppppp-net's `net.ping` keepalive,
+ * which throws "unexpected end of parent stream" against the hub and tears the
+ * connection down (~5-10s). This is a bug in the dormant ppppp-net ping/glue
+ * layer's interaction with ppppp-hub. See docs/decisions.md "Hub replication".
+ *
+ * Direct (hubless) two-node sync is fully working — see two-node-sync.js.
+ *
+ * Run: node packages/backend/test/hub-sync.js
  */
 
 const os = require('node:os')
@@ -83,11 +91,12 @@ async function main() {
   await bob.joinHub({ ...hubAddr, token })
   console.log('[test] alice joined (bootstrap); bob joined with an invite token')
 
-  // Both declare the goal and start sync. We do NOT manually dial: the ppppp-net
-  // scheduler discovers co-members via hub.attendants() and opens tunnels
-  // between them automatically. We just wait for it to wire them up.
+  // Both declare the goal, then explicitly drive hub→tunnel→sync via
+  // followHubPeers (watches attendants, tunnels to each co-member).
   alice.follow(bobMe.account, 'all')
   bob.follow(bobMe.account, 'all')
+  await alice.followHubPeers(hubAddr)
+  await bob.followHubPeers(hubAddr)
   alice.syncStart()
   bob.syncStart()
 

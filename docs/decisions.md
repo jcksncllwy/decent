@@ -86,6 +86,40 @@ own (passing) lockfile resolves. Those commits are recorded in
 `packages/backend/package.json`. **Do not float these deps.** When we eventually
 vendor pzp in-tree, vendor this same consistent set.
 
+## Hub replication — known issue (Step 4 WIP)
+
+**Direct (hubless) two-node replication works.** Hub-mediated replication (for
+NAT traversal via a public `ppppp-hub`) is wired but not yet working end to end.
+Carefully isolated; every component works *in isolation*:
+
+- ✅ Hub join, `hub.createToken()` invite tokens, token-based join (local + over
+  the public droplet hub).
+- ✅ The hub's `attendants()` stream correctly reports co-members (verified by
+  subscribing directly: emits `[alice]`, then `[alice, bob]` after bob joins).
+- ✅ The hub's invite/membership model (1st connector = bootstrap; others need a
+  token; members are remembered).
+
+**The wall:** to open a peer→peer tunnel, the tunnel transport
+(`ppppp-hub-client/ms-tunnel`) only registers a hub it sees connect via
+`peer.net.listen()` — i.e. the connection must go through `ppppp-net`, not raw
+`peer.connect`. But connecting to the hub through `ppppp-net` triggers its
+`net.ping` keepalive (`ppppp-net/lib/glue.js`), which throws **"unexpected end of
+parent stream"** against the hub and tears the connection down after ~5-10s,
+before/around the time sync would run. Net result: the tunnel either never opens
+("hub offline or unknown") or dies before replicating.
+
+This is a bug in the dormant ppppp-net ping/glue layer's interaction with
+ppppp-hub — not in Decent's logic and not in the hub deploy. Candidate fixes to
+explore next: (a) disable/patch the `net.ping` glue for hub connections in our
+vendored copy; (b) keep the hub connection alive independently; (c) replace the
+hub transport with a modern P2P layer (e.g. `iroh`) if the dormant stack proves
+too brittle. Until then, Decent replicates directly (same-LAN / known address).
+
+Address-format note (cost real debugging time): `addHub` wants the modern
+multiaddr URI form `/net/<host>/tcp/<port>/shse/<pubkey>[.<token>]`; raw
+`peer.connect` wants the legacy form `net:<host>:<port>~shse:<pubkey>` and
+`tunnel:<hub>:<peer>~shse:<peer>`. Two different parsers in the same stack.
+
 ## Out of scope (for now)
 
 - **Posting *out*** to other social platforms. Mirroring is one-way *in* only.

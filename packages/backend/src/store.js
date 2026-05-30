@@ -154,6 +154,38 @@ class Store {
   }
 
   /**
+   * Connect to a hub, watch its attendants, and open a tunnel to each co-member
+   * as they appear — which triggers ppppp-sync automatically. This drives the
+   * hub→tunnel→sync chain explicitly rather than relying on the ppppp-net
+   * scheduler (whose auto-discovery proved unreliable). Returns a stop fn.
+   *
+   * @param {{host: string, port: number|string, pubkey: string}} hub
+   */
+  async followHubPeers({ host, port, pubkey: hubPubkey }) {
+    const pull = require('pull-stream')
+    const rpc = await p(this.#peer.connect)(`net:${host}:${port}~shse:${hubPubkey}`)
+    const me = this.#keypair.public
+    const tunneled = new Set()
+
+    const drain = pull.drain((attendants) => {
+      for (const peerPubkey of attendants) {
+        if (peerPubkey === me || tunneled.has(peerPubkey)) continue
+        tunneled.add(peerPubkey)
+        const addr = `tunnel:${hubPubkey}:${peerPubkey}~shse:${peerPubkey}`
+        this.#peer.connect(addr, (err) => {
+          if (err) {
+            tunneled.delete(peerPubkey) // allow retry on the next emit
+          } else {
+            this.#peer.sync.start()
+          }
+        })
+      }
+    })
+    pull(rpc.hub.attendants(), drain)
+    return () => drain.abort && drain.abort()
+  }
+
+  /**
    * Connect to a peer *through* a hub and start syncing. The hub brokers the
    * connection; the replication protocol is identical to a direct dial.
    * Address form (multiaddr URI): `/tunnel/<hubPubkey>.<peerPubkey>/shse/<peerPubkey>`.
