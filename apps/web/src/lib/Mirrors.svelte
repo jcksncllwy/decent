@@ -44,6 +44,10 @@
     return `${account.slice(0, 10)}...${account.slice(-6)}`
   }
 
+  function mirrorKey(mirror) {
+    return `${mirror.platform}:${mirror.handle}`
+  }
+
   async function loadMirrors() {
     loading = true
     try {
@@ -54,9 +58,9 @@
       const entries = await Promise.all(
         nextMirrors.map(async (mirror) => {
           try {
-            return [mirror.handle, await api.mirrorFreshness(mirror.handle, mirror.platform)]
+            return [mirrorKey(mirror), await api.mirrorFreshness(mirror.handle, mirror.platform)]
           } catch (err) {
-            return [mirror.handle, { state: 'unknown', error: err.message, kind: err.kind }]
+            return [mirrorKey(mirror), { state: 'unknown', error: err.message, kind: err.kind }]
           }
         })
       )
@@ -148,10 +152,10 @@
             <p class="mirror-account" title={mirror.account}>{shortAccount(mirror.account)}</p>
           </div>
           <div class="freshness">
-            <span class:stale={freshness[mirror.handle]?.state === 'stale'} class:fresh={freshness[mirror.handle]?.state === 'fresh'}>
-              {freshnessLabel(freshness[mirror.handle])}
+            <span class:stale={freshness[mirrorKey(mirror)]?.state === 'stale'} class:fresh={freshness[mirrorKey(mirror)]?.state === 'fresh'}>
+              {freshnessLabel(freshness[mirrorKey(mirror)])}
             </span>
-            {#if freshness[mirror.handle]?.state === 'stale'}
+            {#if freshness[mirrorKey(mirror)]?.state === 'stale'}
               <button
                 type="button"
                 class="remirror"
