@@ -119,7 +119,11 @@ function createApiServer(store) {
 
       return json(res, 404, { error: 'not found' })
     } catch (err) {
-      return json(res, 400, { error: err.message })
+      // Carry a structured `kind` when handlers set one (e.g. ingest auth/ratelimit)
+      // so the UI can react (e.g. "rate-limited, try later" vs "auth broken").
+      const body = { error: err.message }
+      if (err.kind) body.kind = err.kind
+      return json(res, 400, body)
     }
   })
 }
