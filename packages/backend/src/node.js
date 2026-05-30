@@ -18,6 +18,7 @@ const Keypair = require('ppppp-keypair')
  *
  * @param {object} [opts]
  * @param {string} [opts.dataDir] - where to store the node's data + keypair.
+ * @param {number} [opts.port] - TCP port for incoming peer connections (0 = ephemeral).
  * @returns {Promise<{ peer: object, keypair: object, dataDir: string }>}
  */
 async function startNode(opts = {}) {
@@ -33,10 +34,27 @@ async function startNode(opts = {}) {
     .use(require('secret-stack/plugins/net'))
     .use(require('secret-handshake-ext/secret-stack'))
     .use(require('ppppp-db'))
+    // Replication stack: dict + set back the account tangle data structures,
+    // goals declares which feeds we want, sync runs the actual replication.
+    .use(require('ppppp-dict'))
+    .use(require('ppppp-set'))
+    .use(require('ppppp-goals'))
+    .use(require('ppppp-sync'))
     .use(require('ssb-box'))
     .call(null, {
       shse: { caps: require('ppppp-caps') },
-      global: { keypair, path: dataDir },
+      global: {
+        keypair,
+        path: dataDir,
+        connections: {
+          incoming: {
+            net: [{ scope: 'device', transform: 'shse', port: opts.port ?? 0 }],
+          },
+          outgoing: {
+            net: [{ transform: 'shse' }],
+          },
+        },
+      },
     })
 
   await peer.db.loaded()

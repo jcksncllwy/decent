@@ -11,11 +11,16 @@
   "scripts": {
     "start": "node bin/decentd.js"
   },
+  "comment": "ppppp-* are pinned to mutually-compatible commits (the set ppppp-sync's passing tests resolve). HEAD of ppppp-db drifted to an async get() API that ppppp-sync can't use — do not float these. See docs/decisions.md.",
   "dependencies": {
-    "ppppp-caps": "github:staltz/ppppp-caps",
-    "ppppp-db": "github:staltz/ppppp-db",
-    "ppppp-keypair": "github:staltz/ppppp-keypair",
-    "secret-handshake-ext": "^0.0.10",
+    "ppppp-caps": "github:staltz/ppppp-caps#93fa810b9a40b78aef4872d4c2a8412cccb52929",
+    "ppppp-db": "github:staltz/ppppp-db#cf1532965ea1d16929ed2291a9b737a4ce74caac",
+    "ppppp-dict": "github:staltz/ppppp-dict#c40d51be6cb96982b4fe691a292b3c12b6f49a36",
+    "ppppp-goals": "github:staltz/ppppp-goals#46a8d8889c668cf291607963fd7301f21aa634b5",
+    "ppppp-keypair": "github:staltz/ppppp-keypair#c33980c580e33f9a35cb0c672b916ec9fe8b4c6d",
+    "ppppp-set": "github:staltz/ppppp-set#07c3e295b2d09d2d6c3ac6b5b93ad2ea80698452",
+    "ppppp-sync": "github:staltz/ppppp-sync#5fef427ebb54eb0b2b48691488edaea25a97c6a7",
+    "secret-handshake-ext": "0.0.11",
     "secret-stack": "^8.1.0",
     "ssb-box": "^1.0.1"
   }

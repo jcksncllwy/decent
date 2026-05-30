@@ -75,6 +75,39 @@ class Store {
     await p(this.#peer.db.del)(msgId)
     return { deleted: msgId }
   }
+
+  // ---- Replication ----------------------------------------------------------
+
+  /** This node's own connectable address (hand to a peer so they can dial us). */
+  address() {
+    return this.#peer.getAddress()
+  }
+
+  /**
+   * Follow another account's 'post' feed: declare a replication goal for it so
+   * sync will pull its messages. `goal` defaults to 'all' (full feed).
+   */
+  follow(accountId, goal = 'all') {
+    const feedId = this.#peer.db.feed.getID(accountId, 'post')
+    this.#peer.goals.set(feedId, goal)
+    return { feed: feedId, goal }
+  }
+
+  /**
+   * Connect to a peer by address and run a sync pass. Both sides must have set
+   * matching goals for the feeds they care about. Returns when the dial
+   * resolves; replication then proceeds in the background until `syncStop()`.
+   */
+  async connect(address) {
+    const rpc = await p(this.#peer.connect)(address)
+    this.#peer.sync.start()
+    return rpc
+  }
+
+  /** Start the sync scheduler (replicate goaled feeds with connected peers). */
+  syncStart() {
+    this.#peer.sync.start()
+  }
 }
 
 /** Normalize a pzp record into Decent's wire shape for a post. */

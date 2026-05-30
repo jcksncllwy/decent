@@ -73,6 +73,19 @@ addons, or (2) pure WASM/JS. Either works.
 directly — always go through `sodium-universal`. No desktop-only assumptions in
 the backend. This is what keeps both mobile paths open.
 
+## Pin all `ppppp-*` packages to one mutually-compatible commit set
+
+The `ppppp-*` packages are inter-dependent and **not API-stable across commits**.
+Floating `github:staltz/ppppp-db` pulls HEAD, whose `db.get(msgID)` became
+**async** (`get(msgID, cb)`), while `ppppp-sync` still calls it **synchronously**
+(`const msg = db.get(rootID)`). That mismatch crashes replication with a cryptic
+`cb is not a function` deep in the sync algorithm.
+
+Fix: pin every `ppppp-*` dependency to the exact commits that `ppppp-sync`'s
+own (passing) lockfile resolves. Those commits are recorded in
+`packages/backend/package.json`. **Do not float these deps.** When we eventually
+vendor pzp in-tree, vendor this same consistent set.
+
 ## Out of scope (for now)
 
 - **Posting *out*** to other social platforms. Mirroring is one-way *in* only.
