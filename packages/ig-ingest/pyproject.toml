@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "decent-ig-ingest"
+version = "0.1.0"
+description = "Instagram ingest CLI for Decent account mirroring"
+requires-python = ">=3.11"
+dependencies = [
+  "instaloader==4.15",
+  "python-dotenv==1.2.2",
+]
+
+[project.scripts]
+decent-ig-ingest = "decent_ig_ingest.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

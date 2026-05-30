@@ -19,6 +19,12 @@ const http = require('node:http')
  *   POST /api/follow        -> { feed, goal } body: { account, goal? }
  *   POST /api/connect       -> { connected }  body: { address }  (secret-stack)
  *   POST /api/connect-iroh  -> { connected }  body: { code }     (iroh dial-by-code)
+ *   POST /api/mirror/instagram -> [ {ok, handle, account, published} | {ok:false, kind} ]
+ *                                body: { handles: [..], limit? }
+ *   GET  /api/mirror        -> [ { platform, handle, account } ]  (mirrors we manage)
+ *   GET  /api/mirror/freshness?platform=&handle= -> { state: fresh|stale|..., ... }
+ *   POST /api/mirror/freshness -> [ { platform, handle, state, ... } | { error, kind } ]
+ *                                body: { mirrors: [{platform, handle}] }
  *   POST /api/hub/join      -> { hub }        body: { multiaddr }
  *   POST /api/hub/connect   -> { connected }  body: { hub, peer } (pubkeys)
  */
@@ -80,6 +86,40 @@ function createApiServer(store) {
         return json(res, 200, await store.irohConnect(code))
       }
 
+      // mirror: import Instagram handles into pzp feeds (one-way).
+      if (route === 'POST /api/mirror/instagram') {
+        const { handles, limit } = await readJson(req)
+        const list = Array.isArray(handles) ? handles : handles ? [handles] : []
+        if (list.length === 0) throw new Error('mirror/instagram requires handles')
+        return json(res, 200, await store.mirrorInstagram(list, { limit }))
+      }
+
+      if (route === 'GET /api/mirror') {
+        return json(res, 200, store.listMirrors())
+      }
+
+      // mirror profile metadata for an account (badges replicated mirrors too).
+      if (route === 'GET /api/mirror/profile') {
+        const account = url.searchParams.get('account')
+        if (!account) throw new Error('mirror/profile requires an account')
+        return json(res, 200, (await store.mirrorProfile(account)) || {})
+      }
+
+      // freshness: ?platform=instagram&handle=chef_jane
+      if (route === 'GET /api/mirror/freshness') {
+        const platform = url.searchParams.get('platform') || 'instagram'
+        const handle = url.searchParams.get('handle')
+        if (!handle) throw new Error('mirror/freshness requires a handle')
+        return json(res, 200, await store.mirrorFreshness(platform, handle))
+      }
+
+      if (route === 'POST /api/mirror/freshness') {
+        const { mirrors } = await readJson(req)
+        const list = Array.isArray(mirrors) ? mirrors : []
+        if (list.length === 0) throw new Error('mirror/freshness requires mirrors')
+        return json(res, 200, await store.mirrorFreshnessMany(list))
+      }
+
       if (route === 'POST /api/hub/join') {
         const { multiaddr } = await readJson(req)
         if (!multiaddr) throw new Error('hub/join requires a multiaddr')
@@ -95,7 +135,11 @@ function createApiServer(store) {
 
       return json(res, 404, { error: 'not found' })
     } catch (err) {
-      return json(res, 400, { error: err.message })
+      // Carry a structured `kind` when handlers set one (e.g. ingest auth/ratelimit)
+      // so the UI can react (e.g. "rate-limited, try later" vs "auth broken").
+      const body = { error: err.message }
+      if (err.kind) body.kind = err.kind
+      return json(res, 400, body)
     }
   })
 }

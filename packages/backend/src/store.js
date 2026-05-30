@@ -15,11 +15,14 @@ class Store {
   #peer
   #keypair
   #accountId
+  #dataDir
   #iroh
+  #mirror
 
-  constructor({ peer, keypair }) {
+  constructor({ peer, keypair, dataDir }) {
     this.#peer = peer
     this.#keypair = keypair
+    this.#dataDir = dataDir
   }
 
   /**
@@ -172,6 +175,48 @@ class Store {
     return { connected: code }
   }
 
+  // ---- Account mirroring (import other platforms as pzp feeds) ---------------
+
+  /** Lazily build the mirror service (ingest CLI + pzp mirror manager). */
+  #mirrorService() {
+    if (!this.#mirror) {
+      const { MirrorService } = require('./mirror/service')
+      this.#mirror = MirrorService.create({
+        peer: this.#peer,
+        ownAccount: this.#accountId,
+        dataDir: this.#dataDir,
+        store: this,
+      })
+    }
+    return this.#mirror
+  }
+
+  /** Mirror one or more Instagram handles into pzp feeds, and follow them. */
+  mirrorInstagram(handles, opts) {
+    const list = Array.isArray(handles) ? handles : [handles]
+    return this.#mirrorService().mirrorInstagramMany(list, opts)
+  }
+
+  /** List mirrors this node manages. */
+  listMirrors() {
+    return this.#mirrorService().list()
+  }
+
+  /** Freshness verdict for a mirror (shells out to the ingest probe). */
+  mirrorFreshness(platform, handle) {
+    return this.#mirrorService().freshness(platform, handle)
+  }
+
+  /** Batched freshness verdicts for mirrors (one ingest probe per batch). */
+  mirrorFreshnessMany(mirrors) {
+    return this.#mirrorService().freshnessMany(mirrors)
+  }
+
+  /** Mirror profile metadata for an account (source/handle/managedBy) or null. */
+  mirrorProfile(account) {
+    return this.#mirrorService().profileOf(account)
+  }
+
   // ---- Hub connectivity (reach peers behind NAT via a public ppppp-hub) ------
 
   /**
@@ -272,12 +317,16 @@ function decodeShareCode(code) {
 
 /** Normalize a pzp record into Decent's wire shape for a post. */
 function toPost(rec) {
-  return {
+  const post = {
     id: rec.id,
     text: rec.msg.data.text,
     account: rec.msg.metadata.account,
     received: rec.received ?? Date.now(),
   }
+  // Mirrored posts carry a `source` (platform/handle/url) — surface it so the UI
+  // can badge them and link to the original.
+  if (rec.msg.data.source) post.source = rec.msg.data.source
+  return post
 }
 
 module.exports = { Store }
