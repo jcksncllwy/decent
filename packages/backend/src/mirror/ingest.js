@@ -58,17 +58,31 @@ function runIngest(argv) {
   })
 }
 
-/** Fetch a handle's recent posts (contract `fetch`). */
-function fetchProfile(handle, { limit, since } = {}) {
-  const argv = ['fetch', handle]
+/**
+ * Fetch recent posts for one or more handles in a SINGLE ingest run (one
+ * Instaloader instance → one RateController paces the whole batch). Returns the
+ * contract array shape: { platform, fetchedAt, results: [...] }.
+ *
+ * CRITICAL: always batch — never call this in a per-handle loop. Multiple
+ * short-lived runs defeat Instaloader's rate management. See INGEST_CONTRACT.md.
+ *
+ * @param {string[]} handles
+ * @param {{limit?: number, since?: string}} [opts]
+ */
+function fetchProfiles(handles, { limit, since } = {}) {
+  const argv = ['fetch', ...handles]
   if (limit != null) argv.push('--limit', String(limit))
   if (since) argv.push('--since', since)
   return runIngest(argv)
 }
 
-/** Cheap freshness probe (contract `freshness`). */
-function fetchFreshness(handle) {
-  return runIngest(['freshness', handle])
+/**
+ * Cheap freshness probe for one or more handles in a SINGLE run.
+ * Returns { platform, checkedAt, results: [...] }.
+ * @param {string[]} handles
+ */
+function fetchFreshness(handles) {
+  return runIngest(['freshness', ...handles])
 }
 
-module.exports = { fetchProfile, fetchFreshness, IG_INGEST_DIR }
+module.exports = { fetchProfiles, fetchFreshness, IG_INGEST_DIR }

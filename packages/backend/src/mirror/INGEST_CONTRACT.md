@@ -15,39 +15,59 @@ A Python CLI in a new repo dir (suggest `packages/ig-ingest/` in the Decent mono
 or a sibling — codex's call; keep it self-contained with its own venv/requirements).
 Auth via the user's IG session (env/session-file, like `instagram-scrape`).
 
-### Command 1 — fetch a profile's recent posts
+### ⚠️ CRITICAL: ONE Instaloader instance per RUN, MANY handles per RUN
+Instaloader's `RateController` paces requests across the lifetime of a SINGLE
+`Instaloader` instance. **Multiple short-lived CLI invocations (one per handle) each
+build a fresh instance with a fresh RateController that has NO memory of prior
+requests — this circumvents Instaloader's careful rate management and gets us banned.**
+So:
+- The CLI MUST accept **multiple handles in a single invocation** and process them all
+  through **one reused `get_loader()` instance** (so the RateController paces the whole
+  batch). The backend calls the CLI ONCE per batch, never in a per-handle loop.
+- Lean on Instaloader's built-in backoff/retry — do NOT add our own retry loop that
+  re-invokes the process. Let Instaloader sleep and retry within the one run.
+
+### Command 1 — fetch one or more profiles' recent posts (ONE instance, batched)
 ```
-decent-ig-ingest fetch <handle> [--limit N] [--since <iso8601>]
+decent-ig-ingest fetch <handle> [<handle> ...] [--limit N] [--since <iso8601>]
 ```
-→ writes JSON to stdout:
+Multiple handles → one Instaloader instance → an array of per-handle results (newest
+posts first). Single-handle still works.
+→ writes JSON to stdout — an ARRAY of per-handle results (one entry per requested
+handle, in request order):
 ```json
 {
   "platform": "instagram",
-  "handle": "chef_jane",
   "fetchedAt": "2026-05-30T08:30:00Z",
-  "profile": {
-    "fullName": "Jane Doe",
-    "bio": "chef. food pics.",
-    "avatarUrl": "https://.../jane.jpg",
-    "postCount": 412
-  },
-  "posts": [
+  "results": [
     {
-      "sourceId": "C3xY...",              // IG shortcode — STABLE dedup key
-      "url": "https://instagram.com/p/C3xY.../",
-      "postedAt": "2026-05-29T14:02:00Z",  // ISO8601 UTC
-      "caption": "today's special...",
-      "media": [
-        { "type": "image", "thumbUrl": "https://.../t.jpg", "fullUrl": "https://.../f.jpg" }
+      "handle": "chef_jane",
+      "profile": {
+        "fullName": "Jane Doe", "bio": "chef.", "avatarUrl": "https://.../jane.jpg",
+        "postCount": 412
+      },
+      "posts": [
+        {
+          "sourceId": "C3xY...",               // IG shortcode — STABLE dedup key
+          "url": "https://instagram.com/p/C3xY.../",
+          "postedAt": "2026-05-29T14:02:00Z",   // ISO8601 UTC
+          "caption": "today's special...",
+          "media": [
+            { "type": "image", "thumbUrl": "https://.../t.jpg", "fullUrl": "https://.../f.jpg" }
+          ]
+        }
       ]
     }
+    // ...one entry per handle. A handle that fails gets { handle, error, kind } instead
+    // of profile/posts — a per-handle error does NOT fail the whole run.
   ]
 }
 ```
-- `posts` newest-first. `--limit` caps count (default e.g. 12). `--since` filters to
-  posts newer than a timestamp (for incremental refresh).
+- `posts` newest-first. `--limit` caps per-handle count (default e.g. 12). `--since`
+  filters to posts newer than a timestamp (incremental refresh).
 - **No media download** in v1 — just URLs/thumb refs.
-- Respect Instaloader rate limiting (RateController). One profile per invocation.
+- ONE Instaloader instance for the whole run (see CRITICAL note above). Let the
+  RateController pace + retry; no extra retry wrapper.
 
 ### Command 2 — freshness probe (cheap, no post bodies)
 ```
