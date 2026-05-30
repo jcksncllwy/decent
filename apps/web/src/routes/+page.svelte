@@ -1,17 +1,45 @@
 <script>
   import { api } from '$lib/api.js'
   import Connect from '$lib/Connect.svelte'
+  import Mirrors from '$lib/Mirrors.svelte'
 
   // Svelte 5 runes: $state for reactive local state, $effect for lifecycle.
   let me = $state(null)
   let posts = $state([])
+  let mirrorProfiles = $state({})
   let draft = $state('')
   let error = $state(null)
   let loading = $state(true)
 
+  function shortAccount(account) {
+    if (!account) return ''
+    if (account.length <= 18) return account
+    return `${account.slice(0, 10)}...${account.slice(-6)}`
+  }
+
+  async function loadMirrorProfiles(nextPosts) {
+    const accounts = [
+      ...new Set(nextPosts.filter((post) => post.source?.platform).map((post) => post.account)),
+    ]
+
+    const entries = await Promise.all(
+      accounts.map(async (account) => {
+        try {
+          return [account, await api.mirrorProfile(account)]
+        } catch {
+          return [account, {}]
+        }
+      })
+    )
+    mirrorProfiles = Object.fromEntries(entries)
+  }
+
   async function refresh() {
     try {
-      ;[me, posts] = await Promise.all([api.whoami(), api.posts()])
+      const [nextMe, nextPosts] = await Promise.all([api.whoami(), api.posts()])
+      me = nextMe
+      posts = nextPosts
+      await loadMirrorProfiles(nextPosts)
       error = null
     } catch (err) {
       error = err.message
@@ -62,6 +90,7 @@
   {/if}
 
   <Connect onConnected={refresh} />
+  <Mirrors onMirrored={refresh} />
 
   <form onsubmit={(e) => { e.preventDefault(); submit() }}>
     <textarea
@@ -80,6 +109,18 @@
     <ul class="feed">
       {#each posts as post (post.id)}
         <li>
+          {#if post.source}
+            <div class="mirror-badge">
+              <a href={post.source.url} target="_blank" rel="noreferrer">
+                Mirrored from Instagram · @{post.source.handle}
+              </a>
+              {#if mirrorProfiles[post.account]?.managedBy}
+                <span title={mirrorProfiles[post.account].managedBy}>
+                  managed by {shortAccount(mirrorProfiles[post.account].managedBy)}
+                </span>
+              {/if}
+            </div>
+          {/if}
           <p class="text">{post.text}</p>
           <div class="meta">
             <time>{new Date(post.received).toLocaleString()}</time>
@@ -164,6 +205,26 @@
     border: 1px solid #2a2f3a;
     border-radius: 10px;
     padding: 0.8rem 0.9rem;
+  }
+  .mirror-badge {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.55rem;
+    align-items: center;
+    margin-bottom: 0.55rem;
+    color: #8a8f98;
+    font-size: 0.76rem;
+  }
+  .mirror-badge a {
+    color: #9dbbff;
+    text-decoration: none;
+  }
+  .mirror-badge a:hover {
+    text-decoration: underline;
+  }
+  .mirror-badge span {
+    color: #8a8f98;
+    font-family: ui-monospace, monospace;
   }
   .text {
     margin: 0 0 0.5rem;
