@@ -36,7 +36,7 @@ function isExpectedClose(err) {
   return /finished|closed|reset|stopped|end|ApplicationClosed|ConnectionLost/i.test(message)
 }
 
-function toIrohSink(send) {
+function toIrohSink(send, onDone) {
   return (read) => {
     const next = (end, obj) => {
       if (end) {
@@ -45,7 +45,7 @@ function toIrohSink(send) {
         }
         send.finish().catch((err) => {
           if (!isExpectedClose(err)) console.error('[iroh-transport] send.finish failed', err)
-        })
+        }).finally(onDone)
         return
       }
 
@@ -53,6 +53,7 @@ function toIrohSink(send) {
         .then(() => read(null, next))
         .catch((err) => {
           if (!isExpectedClose(err)) console.error('[iroh-transport] send.writeAll failed', err)
+          onDone()
           read(err, () => {})
         })
     }
@@ -61,7 +62,7 @@ function toIrohSink(send) {
   }
 }
 
-function fromIrohSource(recv) {
+function fromIrohSource(recv, onDone) {
   const source = Pushable()
 
   ;(async () => {
@@ -71,21 +72,39 @@ function fromIrohSource(recv) {
       }
     } catch (err) {
       source.end(isExpectedClose(err) ? true : err)
+      onDone()
     }
   })()
 
   return source
 }
 
-function bridgeSyncDuplexOverIroh(syncDuplex, stream) {
-  const dup = syncDuplex()
-  const abortOutgoing = pull(dup.source, toIrohSink(stream.send))
-  const abortIncoming = pull(fromIrohSource(stream.recv), dup.sink)
-
+function once(fn) {
+  let called = false
   return () => {
+    if (called) return
+    called = true
+    fn()
+  }
+}
+
+function bridgeSyncDuplexOverIroh(syncDuplex, stream, onDone = () => {}) {
+  const dup = syncDuplex()
+  let remaining = 2
+  let abort
+  const directionDone = () => {
+    remaining -= 1
+    if (remaining <= 0) onDone(abort)
+  }
+
+  const abortOutgoing = pull(dup.source, toIrohSink(stream.send, once(directionDone)))
+  const abortIncoming = pull(fromIrohSource(stream.recv, once(directionDone)), dup.sink)
+
+  abort = () => {
     abortOutgoing?.(true, () => {})
     abortIncoming?.(true, () => {})
   }
+  return abort
 }
 
 function parseTicket(input) {
@@ -136,7 +155,7 @@ async function createIrohTransport({ syncDuplex, onPeerConnected } = {}) {
               // Keep this inbound path independent from outbound connect().
               const stream = await conn.acceptBi()
               if (closed) return
-              const abort = bridgeSyncDuplexOverIroh(syncDuplex, stream)
+              const abort = bridgeSyncDuplexOverIroh(syncDuplex, stream, (done) => aborts.delete(done))
               aborts.add(abort)
             } catch (acceptErr) {
               if (!isExpectedClose(acceptErr)) {
@@ -175,7 +194,7 @@ async function createIrohTransport({ syncDuplex, onPeerConnected } = {}) {
       onPeerConnected?.(remote.toString())
 
       const stream = await conn.openBi()
-      const abort = bridgeSyncDuplexOverIroh(syncDuplex, stream)
+      const abort = bridgeSyncDuplexOverIroh(syncDuplex, stream, (done) => aborts.delete(done))
       aborts.add(abort)
     },
 

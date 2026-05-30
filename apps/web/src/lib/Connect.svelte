@@ -4,6 +4,7 @@
   let { onConnected = async () => {} } = $props()
 
   let nodeId = $state('')
+  let ticket = $state('')
   let account = $state('')
   let loadingCode = $state(true)
   let copied = $state(false)
@@ -19,7 +20,11 @@
   }
 
   function shareCode() {
-    return JSON.stringify({ nodeId, account })
+    try {
+      return JSON.stringify({ ...JSON.parse(ticket), account })
+    } catch {
+      return JSON.stringify({ nodeId, account })
+    }
   }
 
   function parseSharedCode(value) {
@@ -34,6 +39,7 @@
     try {
       const [info, me] = await Promise.all([api.nodeId(), api.whoami()])
       nodeId = info.nodeId
+      ticket = info.ticket
       account = me.account
       error = null
     } catch (err) {

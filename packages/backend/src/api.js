@@ -28,6 +28,10 @@ function createApiServer(store) {
     const route = `${req.method} ${url.pathname}`
 
     try {
+      if (isMutating(req.method) && !isAllowedOrigin(req.headers.origin)) {
+        return json(res, 403, { error: 'origin not allowed' })
+      }
+
       if (route === 'GET /api/whoami') {
         return json(res, 200, store.whoami())
       }
@@ -100,11 +104,22 @@ function json(res, status, payload) {
   const body = JSON.stringify(payload)
   res.writeHead(status, {
     'content-type': 'application/json',
-    'access-control-allow-origin': '*',
-    'access-control-allow-methods': 'GET,POST,DELETE,OPTIONS',
-    'access-control-allow-headers': 'content-type',
   })
   res.end(body)
+}
+
+function isMutating(method) {
+  return method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS'
+}
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true
+  try {
+    const url = new URL(origin)
+    return url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')
+  } catch {
+    return false
+  }
 }
 
 function readJson(req) {

@@ -6,10 +6,11 @@ const { Store } = require('../src/store')
 const { createApiServer } = require('../src/api')
 
 const PORT = Number(process.env.DECENT_PORT) || 8008
+const DATA_DIR = process.env.DECENT_DATA
 
 async function main() {
   console.log('[decentd] starting pzp node...')
-  const { peer, keypair, dataDir } = await startNode()
+  const { peer, keypair, dataDir } = await startNode({ dataDir: DATA_DIR })
   console.log(`[decentd] data dir: ${dataDir}`)
 
   const store = new Store({ peer, keypair })
