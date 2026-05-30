@@ -1,5 +1,6 @@
 <script>
   import { api } from '$lib/api.js'
+  import Connect from '$lib/Connect.svelte'
 
   // Svelte 5 runes: $state for reactive local state, $effect for lifecycle.
   let me = $state(null)
@@ -59,6 +60,8 @@
       <br /><small>Is the daemon running? <code>npm run backend</code></small>
     </p>
   {/if}
+
+  <Connect onConnected={refresh} />
 
   <form onsubmit={(e) => { e.preventDefault(); submit() }}>
     <textarea
