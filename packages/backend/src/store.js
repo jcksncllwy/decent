@@ -147,13 +147,27 @@ class Store {
   /** Our iroh NodeId + ticket — the "code" a friend pastes to connect to us. */
   async irohId() {
     const t = await this.#irohTransport()
-    return { nodeId: await t.nodeId(), ticket: await t.ticket() }
+    const nodeId = await t.nodeId()
+    const account = this.#accountId
+    const ticket = await t.ticket()
+    const code = encodeShareCode({ nodeId, account })
+    return { nodeId, account, ticket, code }
   }
 
-  /** Dial a peer by their iroh NodeId (or ticket) and start syncing. */
+  /**
+   * Dial a peer by Decent share code, iroh NodeId, or iroh ticket and start
+   * syncing. Decent share codes include the pzp account, so they can create the
+   * follow goal before dialing. Bare NodeIds/tickets remain connect-only.
+   */
   async irohConnect(code) {
     const t = await this.#irohTransport()
-    await t.connect(code)
+    const shared = decodeShareCode(code)
+    if (shared) {
+      this.follow(shared.account, 'all')
+      await t.connect(shared.nodeId)
+    } else {
+      await t.connect(code)
+    }
     this.#peer.sync.start()
     return { connected: code }
   }
@@ -240,6 +254,20 @@ class Store {
     this.#peer.sync.start()
     return rpc
   }
+}
+
+function encodeShareCode(payload) {
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
+}
+
+function decodeShareCode(code) {
+  try {
+    const parsed = JSON.parse(Buffer.from(code, 'base64url').toString('utf8'))
+    if (typeof parsed?.nodeId === 'string' && typeof parsed?.account === 'string') {
+      return { nodeId: parsed.nodeId, account: parsed.account }
+    }
+  } catch {}
+  return null
 }
 
 /** Normalize a pzp record into Decent's wire shape for a post. */

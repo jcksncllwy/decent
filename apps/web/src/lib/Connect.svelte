@@ -4,8 +4,7 @@
   let { onConnected = async () => {} } = $props()
 
   let nodeId = $state('')
-  let ticket = $state('')
-  let account = $state('')
+  let shareCode = $state('')
   let loadingCode = $state(true)
   let copied = $state(false)
   let code = $state('')
@@ -19,28 +18,11 @@
     return `${value.slice(0, 12)}...${value.slice(-8)}`
   }
 
-  function shareCode() {
-    try {
-      return JSON.stringify({ ...JSON.parse(ticket), account })
-    } catch {
-      return JSON.stringify({ nodeId, account })
-    }
-  }
-
-  function parseSharedCode(value) {
-    try {
-      const parsed = JSON.parse(value)
-      if (parsed && typeof parsed.nodeId === 'string') return parsed
-    } catch {}
-    return { nodeId: value }
-  }
-
   async function loadNodeId() {
     try {
-      const [info, me] = await Promise.all([api.nodeId(), api.whoami()])
+      const info = await api.nodeId()
       nodeId = info.nodeId
-      ticket = info.ticket
-      account = me.account
+      shareCode = info.code
       error = null
     } catch (err) {
       error = err.message
@@ -50,9 +32,9 @@
   }
 
   async function copyNodeId() {
-    if (!nodeId || !account) return
+    if (!shareCode) return
     try {
-      await navigator.clipboard.writeText(shareCode())
+      await navigator.clipboard.writeText(shareCode)
       copied = true
       setTimeout(() => {
         copied = false
@@ -71,8 +53,6 @@
     error = null
 
     try {
-      const friend = parseSharedCode(trimmed)
-      if (friend.account) await api.follow(friend.account)
       await api.connectIroh(trimmed)
       connected = true
       code = ''
@@ -101,7 +81,7 @@
         <p class="code muted">Unavailable</p>
       {/if}
     </div>
-    <button type="button" class="copy" disabled={!nodeId || loadingCode} onclick={copyNodeId}>
+    <button type="button" class="copy" disabled={!shareCode || loadingCode} onclick={copyNodeId}>
       {copied ? 'Copied' : 'Copy'}
     </button>
   </div>

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Two-daemon paste-a-code smoke over the REAL HTTP API — the same endpoint sequence
-# the Svelte Connect UI exercises. Boots two backends, builds bob's share code
-# from GET /api/nodeid + GET /api/whoami, has alice follow bob's account, dials via
-# POST /api/connect-iroh, and checks alice's GET /api/posts replicates bob's post.
+# the Svelte Connect UI exercises. Boots two backends, gets bob's share code from
+# GET /api/nodeid, has alice paste it via POST /api/connect-iroh, and checks alice's
+# GET /api/posts replicates bob's post. No separate follow call: the code carries
+# both transport address and pzp account identity.
 #
 # Run: bash packages/backend/test/iroh-api-smoke.sh
 set -euo pipefail
@@ -39,14 +40,10 @@ boot "$B_PORT" "$B_DATA"
 echo "[smoke] bob posts + exposes its code"
 curl -sf -X POST "http://127.0.0.1:$B_PORT/api/posts" \
   -H 'content-type: application/json' -d '{"text":"hello via the connect UI path"}' >/dev/null
-BOB_ACCOUNT="$(curl -sf "http://127.0.0.1:$B_PORT/api/whoami" | python3 -c 'import sys,json;print(json.load(sys.stdin)["account"])')"
-BOB_NODEID="$(curl -sf "http://127.0.0.1:$B_PORT/api/nodeid" | python3 -c 'import sys,json;print(json.load(sys.stdin)["nodeId"])')"
-BOB_CODE="$(python3 -c 'import json,sys; print(json.dumps({"nodeId": sys.argv[1], "account": sys.argv[2]}))' "$BOB_NODEID" "$BOB_ACCOUNT")"
+BOB_NODEID_JSON="$(curl -sf "http://127.0.0.1:$B_PORT/api/nodeid")"
+BOB_NODEID="$(printf '%s' "$BOB_NODEID_JSON" | python3 -c 'import sys,json;print(json.load(sys.stdin)["nodeId"])')"
+BOB_CODE="$(printf '%s' "$BOB_NODEID_JSON" | python3 -c 'import sys,json;print(json.load(sys.stdin)["code"])')"
 echo "[smoke] bob nodeId ${BOB_NODEID:0:12}…"
-
-# alice must follow bob's feed; the UI does this from the pasted share code.
-curl -sf -X POST "http://127.0.0.1:$A_PORT/api/follow" \
-  -H 'content-type: application/json' -d "{\"account\":\"$BOB_ACCOUNT\"}" >/dev/null
 
 echo "[smoke] alice pastes bob's code -> POST /api/connect-iroh"
 curl -sf -X POST "http://127.0.0.1:$A_PORT/api/connect-iroh" \

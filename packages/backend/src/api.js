@@ -12,7 +12,7 @@ const http = require('node:http')
  * Routes:
  *   GET  /api/whoami        -> { account, pubkey }
  *   GET  /api/address       -> { address }   (secret-stack: dial us directly)
- *   GET  /api/nodeid        -> { nodeId, ticket }  (iroh: the code a friend pastes)
+ *   GET  /api/nodeid        -> { nodeId, account, ticket, code } (iroh share code)
  *   GET  /api/posts         -> [ { id, text, account, received }, ... ]
  *   POST /api/posts         -> { id, ... }   body: { text }
  *   DELETE /api/posts/:id   -> { deleted }
