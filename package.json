@@ -1,0 +1,21 @@
+{
+  "name": "decent",
+  "version": "0.0.1",
+  "private": true,
+  "description": "A local-first, decentralized social client built on pzp (the ppppp successor to Secure Scuttlebutt)",
+  "license": "AGPL-3.0",
+  "type": "commonjs",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "backend": "node packages/backend/bin/decentd.js",
+    "cli": "node packages/cli/bin/decent.js",
+    "web": "npm run dev --workspace apps/web",
+    "test": "npm test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

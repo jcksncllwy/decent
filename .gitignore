@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+.svelte-kit/
+*.log
+.DS_Store
+
+# Decent runtime data (per-user pzp node state — never commit)
+.decent/
+*.decent-data/
+
+# Env
+.env
+.env.local

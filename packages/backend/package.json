@@ -1,0 +1,22 @@
+{
+  "name": "@decent/backend",
+  "version": "0.0.1",
+  "description": "The Decent pzp node + local HTTP API",
+  "license": "AGPL-3.0",
+  "type": "commonjs",
+  "main": "src/node.js",
+  "bin": {
+    "decentd": "bin/decentd.js"
+  },
+  "scripts": {
+    "start": "node bin/decentd.js"
+  },
+  "dependencies": {
+    "ppppp-caps": "github:staltz/ppppp-caps",
+    "ppppp-db": "github:staltz/ppppp-db",
+    "ppppp-keypair": "github:staltz/ppppp-keypair",
+    "secret-handshake-ext": "^0.0.10",
+    "secret-stack": "^8.1.0",
+    "ssb-box": "^1.0.1"
+  }
+}
