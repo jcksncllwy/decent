@@ -13,7 +13,7 @@ async function main() {
   const { peer, keypair, dataDir } = await startNode({ dataDir: DATA_DIR })
   console.log(`[decentd] data dir: ${dataDir}`)
 
-  const store = new Store({ peer, keypair })
+  const store = new Store({ peer, keypair, dataDir })
   const me = await store.init()
   console.log(`[decentd] identity ready`)
   console.log(`[decentd]   account: ${me.account}`)
