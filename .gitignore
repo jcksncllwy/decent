@@ -9,6 +9,9 @@ build/
 .decent/
 *.decent-data/
 
+# Hub runtime state (its keypair + member list, created on first run)
+packages/hub/vendor/data/
+
 # Env
 .env
 .env.local

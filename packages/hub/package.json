@@ -1,0 +1,37 @@
+{
+  "name": "@decent/hub",
+  "version": "0.0.1",
+  "description": "Deployable ppppp-hub for Decent — public rendezvous/relay so nodes behind NAT can find each other",
+  "license": "AGPL-3.0",
+  "type": "module",
+  "bin": {
+    "decent-hub": "bin/decent-hub.js"
+  },
+  "scripts": {
+    "start": "node bin/decent-hub.js"
+  },
+  "comment": "Hub source is VENDORED in ./vendor (the npm ppppp-hub tarball omits HOMEPAGE.md + lib/public + lib/views via its files allow-list, so it can't run as published). ppppp-caps and ppppp-keypair are pinned to match the client (packages/backend) or the secret handshake fails.",
+  "dependencies": {
+    "@fastify/static": "6.12.0",
+    "@fastify/view": "8.2.0",
+    "atomic-file-rw": "~0.3.0",
+    "bs58": "5.0.0",
+    "debug": "4.3.4",
+    "ejs": "3.1.9",
+    "fastify": "4.25.2",
+    "pino": "8.17.2",
+    "ppppp-caps": "github:staltz/ppppp-caps#93fa810b9a40b78aef4872d4c2a8412cccb52929",
+    "ppppp-keypair": "github:staltz/ppppp-keypair#c33980c580e33f9a35cb0c672b916ec9fe8b4c6d",
+    "ppppp-net": "github:staltz/ppppp-net",
+    "pull-cat": "1.1.11",
+    "pull-notify": "0.1.2",
+    "pull-stream": "3.7.0",
+    "rehype-stringify": "9.0.3",
+    "remark-parse": "10.0.2",
+    "remark-rehype": "10.1.0",
+    "secret-handshake-ext": "0.0.11",
+    "secret-stack": "8.1.0",
+    "ssb-conn": "6.0.4",
+    "unified": "10.1.2"
+  }
+}
