@@ -4,7 +4,12 @@ const caps = require('ppppp-caps')
 const SecretStack = require('secret-stack/bare')
 
 module.exports = function startPeer() {
-  const path = Path.join(__dirname, '..', 'data')
+  // Decent vendor change: make the data dir (which holds the hub's keypair =
+  // its stable identity / shseCredentials) configurable via HUB_DATA_DIR, so
+  // deployments can point it at a known persisted path outside the repo tree.
+  // Upstream hardcoded `__dirname/../data`, tying the identity to the checkout
+  // location. Default preserves the old behavior.
+  const path = process.env.HUB_DATA_DIR || Path.join(__dirname, '..', 'data')
   const keypairPath = Path.join(path, 'keypair')
   const keypair = Keypair.loadOrCreateSync(keypairPath)
 
