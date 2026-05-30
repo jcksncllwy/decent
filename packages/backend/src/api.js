@@ -17,6 +17,8 @@ const http = require('node:http')
  *   DELETE /api/posts/:id   -> { deleted }
  *   POST /api/follow        -> { feed, goal } body: { account, goal? }
  *   POST /api/connect       -> { connected }  body: { address }
+ *   POST /api/hub/join      -> { hub }        body: { multiaddr }
+ *   POST /api/hub/connect   -> { connected }  body: { hub, peer } (pubkeys)
  */
 function createApiServer(store) {
   return http.createServer(async (req, res) => {
@@ -58,6 +60,19 @@ function createApiServer(store) {
         if (!address) throw new Error('connect requires an address')
         await store.connect(address)
         return json(res, 200, { connected: address })
+      }
+
+      if (route === 'POST /api/hub/join') {
+        const { multiaddr } = await readJson(req)
+        if (!multiaddr) throw new Error('hub/join requires a multiaddr')
+        return json(res, 200, await store.joinHub(multiaddr))
+      }
+
+      if (route === 'POST /api/hub/connect') {
+        const { hub, peer } = await readJson(req)
+        if (!hub || !peer) throw new Error('hub/connect requires hub and peer pubkeys')
+        await store.connectViaHub(hub, peer)
+        return json(res, 200, { connected: { hub, peer } })
       }
 
       return json(res, 404, { error: 'not found' })

@@ -30,6 +30,15 @@ class Store {
       keypair: this.#keypair,
       subdomain: 'person',
     })
+    // ppppp-set must be loaded for our account before it can be written to.
+    // The hub-client persists joined hubs into a Set feed, so this is required
+    // before joinHub() works.
+    await p(this.#peer.set.load)(this.#accountId)
+    // Now that the Set is loaded, start the net scheduler (it reads the Set on
+    // start for hub discovery, so it must run after set.load — which is why we
+    // disable autostart in node.js). This is what registers hub connections in
+    // the tunnel transport's hub map so connectViaHub() can find them.
+    this.#peer.net.start()
     return this.whoami()
   }
 
@@ -107,6 +116,57 @@ class Store {
   /** Start the sync scheduler (replicate goaled feeds with connected peers). */
   syncStart() {
     this.#peer.sync.start()
+  }
+
+  // ---- Hub connectivity (reach peers behind NAT via a public ppppp-hub) ------
+
+  /**
+   * Join a hub so it can tunnel connections between us and other members.
+   * Builds the multiaddr ppppp-net wants (modern multiaddr URI form):
+   *   `/net/<host>/tcp/<port>/shse/<pubkey>[.<token>]`
+   *
+   * The hub only auto-admits its FIRST (bootstrap) member. Everyone else must
+   * present an invite `token` (minted by an existing member via mintToken()),
+   * which rides in the secret-handshake `extra` field. Once admitted, you're a
+   * remembered member and can rejoin tokenless.
+   *
+   * @param {{host: string, port: number|string, pubkey: string, token?: string}} hub
+   */
+  async joinHub({ host, port, pubkey, token }) {
+    const cred = token ? `${pubkey}.${token}` : pubkey
+    const multiaddr = `/net/${host}/tcp/${port}/shse/${cred}`
+    await p(this.#peer.hubClient.addHub)(multiaddr)
+    return { hub: multiaddr }
+  }
+
+  /**
+   * Mint a one-time invite token from a hub we're connected to. Hand the token
+   * to a friend so they can join the hub. (The hub allows this anonymously, but
+   * in practice you call it after you've joined.)
+   * @param {string} hubPubkey the hub's shse pubkey
+   */
+  async mintToken({ host, port, pubkey }) {
+    // Raw peer.connect uses the legacy multiserver address form (not the
+    // multiaddr URI form that addHub wants).
+    const rpc = await p(this.#peer.connect)(`net:${host}:${port}~shse:${pubkey}`)
+    const token = await p(rpc.hub.createToken)()
+    return { token }
+  }
+
+  /**
+   * Connect to a peer *through* a hub and start syncing. The hub brokers the
+   * connection; the replication protocol is identical to a direct dial.
+   * Address form (multiaddr URI): `/tunnel/<hubPubkey>.<peerPubkey>/shse/<peerPubkey>`.
+   * @param {string} hubPubkey  the hub's shse pubkey
+   * @param {string} peerPubkey the target peer's shse pubkey
+   */
+  async connectViaHub(hubPubkey, peerPubkey) {
+    // Legacy multiserver address form (what raw peer.connect parses):
+    //   tunnel:<hubPubkey>:<peerPubkey>~shse:<peerPubkey>
+    const address = `tunnel:${hubPubkey}:${peerPubkey}~shse:${peerPubkey}`
+    const rpc = await p(this.#peer.connect)(address)
+    this.#peer.sync.start()
+    return rpc
   }
 }
 

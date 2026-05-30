@@ -33,6 +33,9 @@ async function startNode(opts = {}) {
   const peer = require('secret-stack/bare')()
     .use(require('secret-stack/plugins/net'))
     .use(require('secret-handshake-ext/secret-stack'))
+    // ppppp-net adds connection management + the net.connect/net.peers API that
+    // ppppp-hub-client needs. Works alongside secret-stack/plugins/net.
+    .use(require('ppppp-net'))
     .use(require('ppppp-db'))
     // Replication stack: dict + set back the account tangle data structures,
     // goals declares which feeds we want, sync runs the actual replication.
@@ -40,6 +43,12 @@ async function startNode(opts = {}) {
     .use(require('ppppp-set'))
     .use(require('ppppp-goals'))
     .use(require('ppppp-sync'))
+    // Hub connectivity: lets us reach peers behind NAT via a public ppppp-hub.
+    // ppppp-hub-client exports [hub, hubClient]: `hub` provides the muxrpc
+    // manifest peers call through the hub; `hubClient` registers the `tunnel`
+    // transport + addHub(). Both required; only active once joinHub() runs.
+    .use(require('ppppp-hub-client')[0])
+    .use(require('ppppp-hub-client')[1])
     .use(require('ssb-box'))
     .call(null, {
       shse: { caps: require('ppppp-caps') },
@@ -52,9 +61,16 @@ async function startNode(opts = {}) {
           },
           outgoing: {
             net: [{ transform: 'shse' }],
+            // The tunnel transform lets us dial peers *through* a hub
+            // (address form: tunnel:<hubPubkey>:<peerPubkey>).
+            tunnel: [{ transform: 'shse' }],
           },
         },
       },
+      // Don't autostart the net scheduler: it calls set.values() on start,
+      // which throws before the Set feed is loaded. Store.init() starts it
+      // explicitly after loading the Set (see store.js).
+      net: { autostart: false },
     })
 
   await peer.db.loaded()
