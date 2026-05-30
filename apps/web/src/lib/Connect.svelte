@@ -4,6 +4,7 @@
   let { onConnected = async () => {} } = $props()
 
   let nodeId = $state('')
+  let account = $state('')
   let loadingCode = $state(true)
   let copied = $state(false)
   let code = $state('')
@@ -17,10 +18,23 @@
     return `${value.slice(0, 12)}...${value.slice(-8)}`
   }
 
+  function shareCode() {
+    return JSON.stringify({ nodeId, account })
+  }
+
+  function parseSharedCode(value) {
+    try {
+      const parsed = JSON.parse(value)
+      if (parsed && typeof parsed.nodeId === 'string') return parsed
+    } catch {}
+    return { nodeId: value }
+  }
+
   async function loadNodeId() {
     try {
-      const info = await api.nodeId()
+      const [info, me] = await Promise.all([api.nodeId(), api.whoami()])
       nodeId = info.nodeId
+      account = me.account
       error = null
     } catch (err) {
       error = err.message
@@ -30,9 +44,9 @@
   }
 
   async function copyNodeId() {
-    if (!nodeId) return
+    if (!nodeId || !account) return
     try {
-      await navigator.clipboard.writeText(nodeId)
+      await navigator.clipboard.writeText(shareCode())
       copied = true
       setTimeout(() => {
         copied = false
@@ -51,6 +65,8 @@
     error = null
 
     try {
+      const friend = parseSharedCode(trimmed)
+      if (friend.account) await api.follow(friend.account)
       await api.connectIroh(trimmed)
       connected = true
       code = ''

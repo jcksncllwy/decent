@@ -35,6 +35,9 @@ class Store {
     // The hub-client persists joined hubs into a Set feed, so this is required
     // before joinHub() works.
     await p(this.#peer.set.load)(this.#accountId)
+    // Always offer our own posts to connected peers. Pulling a friend's posts
+    // still requires an explicit follow goal for their account.
+    this.follow(this.#accountId, 'all')
     // Now that the Set is loaded, start the net scheduler (it reads the Set on
     // start for hub discovery, so it must run after set.load — which is why we
     // disable autostart in node.js). This is what registers hub connections in

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Two-daemon paste-a-code smoke over the REAL HTTP API — the exact path the Svelte
-# Connect UI exercises. Boots two backends, gets bob's nodeId via GET /api/nodeid,
-# posts a message as bob, dials it from alice via POST /api/connect-iroh, and checks
-# alice's GET /api/posts replicates bob's post.
+# Two-daemon paste-a-code smoke over the REAL HTTP API — the same endpoint sequence
+# the Svelte Connect UI exercises. Boots two backends, builds bob's share code
+# from GET /api/nodeid + GET /api/whoami, has alice follow bob's account, dials via
+# POST /api/connect-iroh, and checks alice's GET /api/posts replicates bob's post.
 #
 # Run: bash packages/backend/test/iroh-api-smoke.sh
 set -euo pipefail
@@ -41,18 +41,16 @@ curl -sf -X POST "http://127.0.0.1:$B_PORT/api/posts" \
   -H 'content-type: application/json' -d '{"text":"hello via the connect UI path"}' >/dev/null
 BOB_ACCOUNT="$(curl -sf "http://127.0.0.1:$B_PORT/api/whoami" | python3 -c 'import sys,json;print(json.load(sys.stdin)["account"])')"
 BOB_NODEID="$(curl -sf "http://127.0.0.1:$B_PORT/api/nodeid" | python3 -c 'import sys,json;print(json.load(sys.stdin)["nodeId"])')"
+BOB_CODE="$(python3 -c 'import json,sys; print(json.dumps({"nodeId": sys.argv[1], "account": sys.argv[2]}))' "$BOB_NODEID" "$BOB_ACCOUNT")"
 echo "[smoke] bob nodeId ${BOB_NODEID:0:12}…"
 
-# alice must follow bob's feed (the UI/Store does this; here we use the follow API).
+# alice must follow bob's feed; the UI does this from the pasted share code.
 curl -sf -X POST "http://127.0.0.1:$A_PORT/api/follow" \
-  -H 'content-type: application/json' -d "{\"account\":\"$BOB_ACCOUNT\"}" >/dev/null
-# bob follows its own feed too (so sync offers it).
-curl -sf -X POST "http://127.0.0.1:$B_PORT/api/follow" \
   -H 'content-type: application/json' -d "{\"account\":\"$BOB_ACCOUNT\"}" >/dev/null
 
 echo "[smoke] alice pastes bob's code -> POST /api/connect-iroh"
 curl -sf -X POST "http://127.0.0.1:$A_PORT/api/connect-iroh" \
-  -H 'content-type: application/json' -d "{\"code\":\"$BOB_NODEID\"}" >/dev/null
+  -H 'content-type: application/json' -d "$(python3 -c 'import json,sys; print(json.dumps({"code": sys.argv[1]}))' "$BOB_CODE")" >/dev/null
 
 echo "[smoke] waiting for replication..."
 for _ in $(seq 1 40); do
